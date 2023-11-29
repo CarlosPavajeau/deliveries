@@ -127,7 +127,7 @@ resource "aws_s3_object" "lambda_create_delivery" {
 resource "aws_lambda_function" "create_delivery" {
   environment {
     variables = {
-      TABLE_NAME = aws_dynamodb_table.deliveries.name
+      DELIVERY_TABLE_NAME = aws_dynamodb_table.deliveries.name
     }
   }
   function_name = "create-delivery-${terraform.workspace}"
