@@ -13,7 +13,7 @@ def lambda_handler(event, context):
     
     # Perform the necessary operations to create the delivery request
     dynamodb.put_item(
-        TableName=os.environ['DELIVERY_TABLE_NAME'],
+        TableName=os.environ['TABLE_NAME'],
         Item={
             'delivery_id': {'S': delivery_id},
             'recipient_name': {'S': recipient_name},
