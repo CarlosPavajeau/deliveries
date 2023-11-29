@@ -4,7 +4,7 @@ import json
 
 def lambda_handler(event, context):
     request_body = json.loads(event['body'])
-    dynamodb = boto3.client('dynamodb')
+    dynamodb = boto3.resource('dynamodb')
 
     
     # Extract the necessary information from the request body
