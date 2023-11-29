@@ -143,6 +143,40 @@ resource "aws_lambda_function" "create_delivery" {
   role        = aws_iam_role.iam_for_lambda.arn
 }
 
+data "archive_file" "search_all_deliveries_archive" {
+  source_file = "lambdas/search_all_deliveries.py"
+  output_path = "lambdas/search_all_deliveries.zip"
+  type        = "zip"
+}
+
+resource "aws_s3_object" "lambda_search_all_deliveries" {
+  bucket = aws_s3_bucket.lambda_bucket.id
+
+  key    = "search_all_deliveries.zip"
+  source = data.archive_file.search_all_deliveries_archive.output_path
+
+  etag = filemd5(data.archive_file.search_all_deliveries_archive.output_path)
+}
+
+resource "aws_lambda_function" "search_all_deliveries" {
+  environment {
+    variables = {
+      DELIVERY_TABLE_NAME = aws_dynamodb_table.deliveries.name
+    }
+  }
+  function_name = "search-all-deliveries-${terraform.workspace}"
+
+  s3_key    = aws_s3_object.lambda_search_all_deliveries.key
+  s3_bucket = aws_s3_bucket.lambda_bucket.id
+
+  runtime = "python3.9"
+  handler = "search_all_deliveries.lambda_handler"
+
+  memory_size = local.aws_lambda_function_memory_size[terraform.workspace]
+  timeout     = local.aws_lambda_function_timeout[terraform.workspace]
+  role        = aws_iam_role.iam_for_lambda.arn
+}
+
 resource "aws_apigatewayv2_api" "deliveries_api" {
   name          = "deliveries-api-${terraform.workspace}"
   protocol_type = "HTTP"
@@ -202,3 +236,28 @@ resource "aws_apigatewayv2_route" "create_delivery" {
 
   target = "integrations/${aws_apigatewayv2_integration.create_delivery.id}"
 }
+
+resource "aws_apigatewayv2_integration" "search_all_deliveries" {
+  api_id = aws_apigatewayv2_api.deliveries_api.id
+
+  integration_type   = "AWS_PROXY"
+  integration_method = "POST"
+  integration_uri    = aws_lambda_function.search_all_deliveries.invoke_arn
+}
+
+resource "aws_lambda_permission" "search_all_deliveries" {
+  statement_id  = "AllowExecutionFromAPIGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.search_all_deliveries.function_name
+  principal     = "apigateway.amazonaws.com"
+
+  source_arn = "${aws_apigatewayv2_api.deliveries_api.execution_arn}/*/*"
+}
+
+resource "aws_apigatewayv2_route" "search_all_deliveries" {
+  api_id    = aws_apigatewayv2_api.deliveries_api.id
+  route_key = "POST /search_all_deliveries"
+
+  target = "integrations/${aws_apigatewayv2_integration.search_all_deliveries.id}"
+}
+
